@@ -3,6 +3,8 @@ package study.querydsl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static study.querydsl.entity.QMember.member;
 
+import java.util.List;
+
 import javax.persistence.EntityManager;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.querydsl.core.QueryResults;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import study.querydsl.entity.Member;
@@ -27,7 +30,7 @@ class QuerydslBasicTest {
 	
 	@BeforeEach
 	public void before() {
-		queryFactory = new JPAQueryFactory(em);
+		queryFactory = new JPAQueryFactory(em); //thread safe 함
 		
 		Team teamA = new Team("오");
 		Team teamB = new Team("위");
@@ -90,5 +93,76 @@ class QuerydslBasicTest {
 							.fetchOne();
 		
 		assertThat(findMember.getUsername()).isEqualTo("장합");
+	}
+	
+	@Test
+	public void resultFetch() {
+		//리스트 조회, 데이터 없으면 empty list 반환
+		List<Member> fetch = queryFactory
+							.selectFrom(member)
+							.fetch();
+		
+		//단건 데이터 조회, 결과 없으면 null, 결과 다건이면 NonUniqueResultException
+		/*
+		Member fetchOne = queryFactory
+						.selectFrom(member)
+						.fetchOne();
+		*/
+		
+		//첫번째 데이터(limit(1)) 조회
+		Member fetchFirst = queryFactory
+							.selectFrom(member)
+							.fetchFirst();
+		
+		//count 쿼리와 select 쿼리 두개를 각각 실행
+		QueryResults<Member> results = queryFactory
+									.selectFrom(member)
+									.fetchResults();
+		
+		long total = results.getTotal(); //count
+		List<Member> content = results.getResults(); //select
+		
+		content.stream().forEach(m -> System.out.println("total : "+total+" member : "+m));
+		
+		//count 쿼리로 변경, count(entity) 일 땐 count(entity.id)로 됨
+		long count = queryFactory
+					.selectFrom(member)
+					.fetchCount();
+	}
+	
+	/**
+	 * 회원 정렬 순서
+	 * 1. 회원 나이 내림차순(desc)
+	 * 2. 회원 이름 오름차순(asc)
+	 * 단 2에서 회원 이름이 없으면 마지막에 출력(nulls last)
+	 */
+	@Test
+	public void sort() {
+		em.persist(new Member(null, 22));
+		/**
+		select
+	        member1 
+	    from
+	        Member member1 
+	    where
+	        member1.age >= ?1 
+	    order by
+	        member1.age desc,
+	        member1.username asc nulls last
+		 */
+		List<Member> result = queryFactory
+							.selectFrom(member)
+							.where(member.age.goe(20))
+							.orderBy(member.age.desc(), member.username.asc().nullsLast())
+							.fetch();
+		
+		result.stream().forEach(System.out::println);
+		/**
+		Member(id=5, username=장합, age=42)
+		Member(id=3, username=여몽, age=40)
+		Member(id=6, username=학소, age=22)
+		Member(id=7, username=null, age=22)
+		Member(id=4, username=육손, age=20)
+		*/
 	}
 }
