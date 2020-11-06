@@ -7,6 +7,8 @@ import static study.querydsl.entity.QTeam.team;
 import java.util.List;
 
 import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.PersistenceUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -242,4 +244,187 @@ class QuerydslBasicTest {
 		assertThat(teamB.get(member.age.avg())).isEqualTo(32);
 	}
 	
+	/**
+	 * 오나라 장수
+	 */
+	@Test
+	public void join() {
+		List<Member> result = queryFactory
+						.selectFrom(member)
+						.innerJoin(member.team, team)
+						.where(team.name.eq("오"))
+						.fetch();
+		
+		assertThat(result)
+				.extracting("username")
+				.containsExactly("여몽", "육손");
+	}
+	
+	/**
+	 * 세타 조인(연관관계 없어도 join 가능)
+	 * 회원의 이름이 팀 이름과 같은 회원 조회
+	 */
+	@Test
+	public void thetaJoin() {
+		em.persist(new Member("오"));
+		em.persist(new Member("위"));
+		em.persist(new Member("촉"));
+		//cross join
+		/**
+		select
+            member0_.member_id as member_i1_0_,
+            member0_.age as age2_0_,
+            member0_.team_id as team_id4_0_,
+            member0_.username as username3_0_ 
+        from
+            member member0_ cross 
+        join
+            team team1_ 
+        where
+            member0_.username=team1_.name
+		 */
+		List<Member> result = queryFactory
+						.select(member)
+						.from(member, team)
+						.where(member.username.eq(team.name))
+						.fetch();
+		
+		assertThat(result)
+				.extracting("username")
+				.containsExactly("오", "위");
+	}
+	
+	/**
+	 * 예) 회원과 팀을 조인하면서, 팀 이름이 '위'인 팀만 조인, 회원은 모두 조회 
+	 * JPQL : select m, t from Member m left join m.team t on t.name = '위'
+	 */
+	@Test
+	public void joinOnFiltering() {
+		/**
+		select
+	        member1,
+	        team 
+	    from
+	        Member member1   
+	    left join
+	        member1.team as team with team.name = ?1
+		 */
+		/*
+		select
+            member0_.member_id as member_i1_0_0_,
+            team1_.team_id as team_id1_1_1_,
+            member0_.age as age2_0_0_,
+            member0_.team_id as team_id4_0_0_,
+            member0_.username as username3_0_0_,
+            team1_.name as name2_1_1_ 
+        from
+            member member0_ 
+        left outer join
+            team team1_ 
+                on member0_.team_id=team1_.team_id 
+                and (
+                    team1_.name=?
+                )
+		 */
+		List<Tuple> result = queryFactory
+				.select(member, team)
+				.from(member)
+				.leftJoin(member.team, team).on(team.name.eq("위"))
+				.fetch();
+		
+		for(Tuple tuple : result) {
+			System.out.println(tuple.toString());
+		}
+		/**
+		 * [Member(id=3, username=여몽, age=40), null]
+		 * [Member(id=4, username=육손, age=20), null]
+		 * [Member(id=5, username=장합, age=42), Team(id=2, name=위)]
+		 * [Member(id=6, username=학소, age=22), Team(id=2, name=위)]
+		 */
+	}
+	
+	/**
+	 * 연관관계 없는 엔티티 외부 조인
+	 * 회원의 이름이 팀 이름과 같은 대상 외부 조인
+	 */
+	@Test
+	public void joinOnNoRelation() {
+		em.persist(new Member("위"));
+		em.persist(new Member("촉"));
+		em.persist(new Member("오"));
+		/** 
+		select
+	        member1,
+	        team 
+	    from
+	        Member member1   
+	    left join
+	        Team team with member1.username = team.name 
+	    */
+		/*
+		select
+            member0_.member_id as member_i1_0_0_,
+            team1_.team_id as team_id1_1_1_,
+            member0_.age as age2_0_0_,
+            member0_.team_id as team_id4_0_0_,
+            member0_.username as username3_0_0_,
+            team1_.name as name2_1_1_ 
+        from
+            member member0_ 
+        left outer join
+            team team1_ 
+                on (
+                    member0_.username=team1_.name
+		*/
+		List<Tuple> result = queryFactory
+						.select(member, team)
+						.from(member)
+						.leftJoin(team).on(member.username.eq(team.name))
+						.fetch();
+		
+		for(Tuple tuple : result) {
+			System.out.println(tuple.toString());
+		}
+		/**
+		 * [Member(id=3, username=여몽, age=40), null]
+		 * [Member(id=4, username=육손, age=20), null]
+		 * [Member(id=5, username=장합, age=42), null]
+		 * [Member(id=6, username=학소, age=22), null]
+		 * [Member(id=7, username=위, age=0), Team(id=2, name=위)]
+		 * [Member(id=8, username=촉, age=0), null]
+		 * [Member(id=9, username=오, age=0), Team(id=1, name=오)]
+		 */
+	}
+	
+	@PersistenceUnit
+	EntityManagerFactory emf;
+	
+	@Test
+	public void fetchJoinNo() {
+		em.flush();
+		em.clear();
+		
+		Member findMember = queryFactory
+				.selectFrom(member)
+				.where(member.username.eq("학소"))
+				.fetchOne();
+		
+		boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+		assertThat(loaded).as("페치 조인 미적용").isFalse();
+	}
+	
+	@Test
+	public void fetchJoinYes() {
+		em.flush();
+		em.clear();
+		
+		Member findMember = queryFactory
+				.selectFrom(member)
+				.join(member.team, team).fetchJoin()
+				.where(member.username.eq("학소"))
+				.fetchOne();
+		
+		boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+		assertThat(loaded).as("페치 조인 적용").isTrue();
+	}
 }
