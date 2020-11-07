@@ -18,9 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import study.querydsl.entity.Member;
+import study.querydsl.entity.QMember;
 import study.querydsl.entity.Team;
 
 @SpringBootTest
@@ -426,5 +428,92 @@ class QuerydslBasicTest {
 		
 		boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
 		assertThat(loaded).as("페치 조인 적용").isTrue();
+	}
+	
+	/**
+	 * 나이가 가장 많은 장수
+	 */
+	@Test
+	public void subQuery() {
+		QMember memberSub = new QMember("memberSub");
+		
+		List<Member> result = queryFactory
+					.selectFrom(member)
+					.where(member.age.eq(
+								JPAExpressions
+									.select(memberSub.age.max())
+									.from(memberSub)
+					))
+					.fetch();
+		
+		assertThat(result).extracting("age").containsExactly(42);
+	}
+	
+	/**
+	 * 나이가 평균 이상인 장수
+	 */
+	@Test
+	public void subQueryGoe() {
+		QMember memberSub = new QMember("memberSub");
+		
+		List<Member> result = queryFactory
+					.selectFrom(member)
+					.where(member.age.goe(
+								JPAExpressions
+									.select(memberSub.age.avg())
+									.from(memberSub)
+					))
+					.fetch();
+		
+		assertThat(result).extracting("username").containsExactly("여몽", "장합");
+	}
+	
+	/**
+	 * 오나라 장수 in절로 구하기
+	 */
+	@Test
+	public void subQueryIn() {
+		QMember memberSub = new QMember("memberSub");
+		
+		List<Member> result = queryFactory
+					.selectFrom(member)
+					.where(member.username.in(
+								JPAExpressions
+									.select(memberSub.username)
+									.from(memberSub)
+									.join(memberSub.team, team)
+									.where(team.name.eq("오"))
+					))
+					.fetch();
+		
+		assertThat(result).extracting("username").containsExactly("여몽", "육손");
+	}
+	
+	/**
+	 * 스칼라 서브쿼리
+	 * 참고 : JPQL과 QueryDSL 모두, 인라인뷰 서브쿼리는 지원하지 않는다.
+	 */
+	@Test
+	public void scalaSubQuery() {
+		QMember memberSub = new QMember("memberSub");
+		
+		List<Tuple> result = queryFactory
+					.select(member.username,
+							JPAExpressions
+								.select(memberSub.age.avg())
+								.from(memberSub)
+							)
+					.from(member)
+					.fetch();
+		
+		for (Tuple tuple : result) {
+			System.out.println(tuple);
+		}
+		/**
+		 * [여몽, 31.0]
+		 * [육손, 31.0]
+		 * [장합, 31.0]
+		 * [학소, 31.0]
+		 */
 	}
 }
