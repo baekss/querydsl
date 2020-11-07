@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
@@ -515,5 +517,88 @@ class QuerydslBasicTest {
 		 * [장합, 31.0]
 		 * [학소, 31.0]
 		 */
+	}
+	
+	@Test
+	public void basicCase() {
+		List<String> result = queryFactory
+					.select(member.age
+							.when(20).then("스무살")
+							.when(40).then("마흔살")
+							.otherwise("기타"))
+					.from(member)
+					.fetch();
+		
+		result.stream().forEach(System.out::println);
+		/**
+		 * 마흔살
+		 * 스무살
+		 * 기타
+		 * 기타
+		 */
+	}
+	
+	@Test
+	public void complexCase() {
+		List<String> result = queryFactory
+				.select(new CaseBuilder()
+						.when(member.age.between(0, 30)).then("0~30세")
+						.when(member.age.between(31, 40)).then("31~40세")
+						.otherwise("기타"))
+				.from(member)
+				.fetch();
+		
+		result.stream().forEach(System.out::println);
+		/**
+		 * 31~40세
+		 * 0~30세
+		 * 기타
+		 * 0~30세
+		 */
+	}
+	
+	@Test
+	public void constant() {
+		/* 
+		JPQL에 상수가 함께 작성된 형태는 아니다.(SQL도 마찬가지)
+		select
+        	member1.username 
+    	from
+        	Member member1 */
+		List<Tuple> result = queryFactory
+				.select(member.username, Expressions.constant("철기병"))
+				.from(member)
+				.fetch();
+		
+		for (Tuple tuple : result) {
+			System.out.println(tuple);
+		}
+		/**
+		 * [여몽, 철기병]
+		 * [육손, 철기병]
+		 * [장합, 철기병]
+		 * [학소, 철기병]
+		 */
+	}
+	
+	@Test
+	public void concat() {
+		//{username}_{'거병나이'age}
+		/**
+		select
+            ((member0_.username||?)||cast(member0_.age as char)) as col_0_0_ 
+        from
+            member member0_ 
+        where
+            member0_.username=?
+		 */
+		List<String> result = queryFactory
+				.select(member.username.concat("_거병나이").concat(member.age.stringValue()))
+				.from(member)
+				.where(member.username.eq("육손"))
+				.fetch();
+		
+		result.stream().forEach(System.out::println);
+		//육손_거병나이20
 	}
 }
