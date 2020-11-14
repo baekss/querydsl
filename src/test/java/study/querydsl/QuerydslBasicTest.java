@@ -1,8 +1,8 @@
 package study.querydsl;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static study.querydsl.entity.QMember.member;
-import static study.querydsl.entity.QTeam.team;
+import static querydsl.study.querydsl.entity.QMember.member;
+import static querydsl.study.querydsl.entity.QTeam.team;
 
 import java.util.List;
 
@@ -16,19 +16,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
+import querydsl.study.querydsl.dto.QMemberDto;
+import querydsl.study.querydsl.entity.QMember;
 import study.querydsl.dto.MemberDto;
 import study.querydsl.dto.UserDto;
 import study.querydsl.entity.Member;
-import study.querydsl.entity.QMember;
 import study.querydsl.entity.Team;
 
 @SpringBootTest
@@ -709,5 +712,97 @@ class QuerydslBasicTest {
 		for(UserDto userDto : result) {
 			System.out.println(userDto);
 		}
+	}
+	
+	@Test
+	public void findDtoByQueryProjection() {
+		List<MemberDto> result = queryFactory
+				//Q객체 생성필요, Dto에 QueryProjection의존 생김(순수 Dto가 퇴색)
+				.select(new QMemberDto(member.username, member.age))
+				.from(member)
+				.fetch();
+				
+		for(MemberDto memberDto : result) {
+			System.out.println(memberDto);
+		}
+	}
+	
+	@Test
+	public void dynamicQueryBooleanBuilder() {
+		String usernameParam = "여몽";
+		Integer ageParam = 40;
+		
+		List<Member> result = searchMember1(usernameParam, ageParam);
+		assertThat(result.size()).isEqualTo(1);
+	}
+
+	private List<Member> searchMember1(String usernameCond, Integer ageCond) {
+
+		BooleanBuilder builder = new BooleanBuilder(member.username.eq(usernameCond)); // 초기값 주기
+		// BooleanBuilder builder = new BooleanBuilder();
+		if (usernameCond != null) {
+			// builder.and(member.username.eq(usernameCond));
+		}
+		
+		if (ageCond != null) {
+			builder.and(member.age.eq(ageCond));
+		}
+		// builder에 담긴 값을 이용해 where절을 제어한다.
+		/**
+		select
+            member0_.member_id as member_i1_0_,
+            member0_.age as age2_0_,
+            member0_.team_id as team_id4_0_,
+            member0_.username as username3_0_ 
+        from
+            member member0_ 
+        where
+            member0_.username=? 
+            and member0_.age=?
+		 */
+		return queryFactory
+				.selectFrom(member)
+				.where(builder)
+				.fetch();
+	}
+	
+	@Test
+	public void dynamicQueryWhereParam() {
+		String usernameParam = "여몽";
+		Integer ageParam = null;
+		
+		List<Member> result = searchMember2(usernameParam, ageParam);
+		assertThat(result.size()).isEqualTo(1);
+	}
+
+	private List<Member> searchMember2(String usernameCond, Integer ageCond) {
+		/**
+		select
+            member0_.member_id as member_i1_0_,
+            member0_.age as age2_0_,
+            member0_.team_id as team_id4_0_,
+            member0_.username as username3_0_ 
+        from
+            member member0_ 
+        where
+            member0_.username=?
+		 */
+		return queryFactory
+				.selectFrom(member)
+				.where(usernameEq(usernameCond), ageEq(ageCond)) // null로 리턴된 값은 무시함
+				.fetch();
+	}
+
+	private BooleanExpression usernameEq(String usernameCond) {
+		return usernameCond != null ? member.username.eq(usernameCond) : null;
+	}
+
+	private BooleanExpression ageEq(Integer ageCond) {
+		return ageCond != null ? member.age.eq(ageCond) : null;
+	}
+	
+	private BooleanExpression allEq(String usernameCond, Integer ageCond) {
+		// NullPointerException을 고려하여 설계해야함
+		return usernameEq(usernameCond).and(ageEq(ageCond));
 	}
 }
