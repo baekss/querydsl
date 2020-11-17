@@ -449,7 +449,7 @@ class QuerydslBasicTest {
 		List<Member> result = queryFactory
 					.selectFrom(member)
 					.where(member.age.eq(
-								JPAExpressions
+								JPAExpressions // JPAExpressions는 static import 사용하여 생략 가능
 									.select(memberSub.age.max())
 									.from(memberSub)
 					))
@@ -804,5 +804,97 @@ class QuerydslBasicTest {
 	private BooleanExpression allEq(String usernameCond, Integer ageCond) {
 		// NullPointerException을 고려하여 설계해야함
 		return usernameEq(usernameCond).and(ageEq(ageCond));
+	}
+	
+	@Test
+	// @Commit
+	public void bulkUpdate() {
+		long count = queryFactory
+				.update(member)
+				.set(member.username, "재야장수")
+				.where(member.age.lt(30))
+				.execute(); // 영향을 받은 rows 수 리턴
+		
+		em.clear(); // bulk 연산 후 영속컨텍스트를 비워 1차 캐시를 초기화 한다.
+		
+		queryFactory
+		.selectFrom(member)
+		.fetch().forEach(System.out::println);
+	}
+	
+	@Test
+	public void bulkAdd() {
+		long count = queryFactory
+				.update(member)
+				.set(member.age, member.age.add(5))
+				.execute();
+		
+		em.clear();
+		
+		queryFactory
+		.selectFrom(member)
+		.fetch().forEach(System.out::println);
+	}
+	
+	@Test
+	public void bulkDelete() {
+		long count = queryFactory
+				.delete(member)
+				.where(member.age.gt(30))
+				.execute();
+		
+		queryFactory
+		.selectFrom(member)
+		.fetch().forEach(System.out::println);
+	}
+	
+	@Test
+	public void sqlFunction() {
+		List<String> result = queryFactory
+					.select(Expressions.stringTemplate(
+						"function('replace', {0}, {1}, {2})", 
+						member.username, "몽", "포"))
+					.from(member)
+					.fetch();
+		/* 
+		select
+	        function('replace',
+	        member1.username,
+	        ?1,
+	        ?2) 
+	    from
+	        Member member1 
+	    */
+		for (String s : result) {
+			System.out.println(s);
+		}
+		/**
+		 * 여포 <- 여몽이었음
+		 * 육손
+		 * 장합
+		 * 학소
+		 */
+	}
+	
+	@Test
+	public void sqlFunction2() {
+		List<String> result = queryFactory
+			.select(member.username)
+			.from(member)
+//			.where(member.username.eq(
+//				Expressions.stringTemplate("function('lower', {0})", member.username)))
+			.where(member.username.eq(member.username.lower())) // ANSI SQL 표준 펑션은 메소드로 등록되어 있음 
+			.fetch();
+		/* 
+		select
+	        member1.username 
+	    from
+	        Member member1 
+	    where
+	        member1.username = lower(member1.username) 
+	    */
+		for (String s : result) {
+			System.out.println(s);
+		}
 	}
 }
