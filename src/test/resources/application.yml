@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: local
+    active: test
   datasource:    url: jdbc:h2:tcp://localhost/C:/sts-4.1.1.RELEASE/workspace/querydsl/querydsl
     username: sa
     password: 
