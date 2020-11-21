@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import study.querydsl.dto.MemberSearchCondition;
@@ -64,7 +66,7 @@ public class MemberRepositoryTest {
 	}
 	
 	@Test
-	public void customRepositoryTest() {
+	public void searchTest() {
 		MemberSearchCondition condition = new MemberSearchCondition();
 		condition.setAgeGoe(21);
 		condition.setAgeLoe(25);
@@ -72,5 +74,14 @@ public class MemberRepositoryTest {
 		
 		List<MemberTeamDto> result = memberRepository.search(condition);
 		assertThat(result).extracting("username").containsExactly("학소");
+	}
+	
+	@Test
+	public void searchPagingTest() {
+		MemberSearchCondition condition = new MemberSearchCondition();
+		PageRequest pageable = PageRequest.of(0, 3);
+		Page<MemberTeamDto> result = memberRepository.searchPageSimple(condition, pageable);
+		assertThat(result.getSize()).isEqualTo(3);
+		assertThat(result.getContent()).extracting("username").containsExactly("여몽", "육손", "장합");
 	}
 }
