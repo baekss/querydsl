@@ -2,6 +2,8 @@ package study.querydsl.controller;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,7 +26,13 @@ public class MemberController {
 	}
 	
 	@GetMapping("/v2/members")
-	public List<MemberTeamDto> searchMemberV2(MemberSearchCondition condition) {
-		return memberRepository.search(condition);
+	public Page<MemberTeamDto> searchMemberV2(MemberSearchCondition condition, Pageable pageable) {
+		return memberRepository.searchPageSimple(condition, pageable);
+	}
+	
+	// http://localhost:8080/v3/members?teamName=teamA&ageGoe=40&page=3&size=8
+	@GetMapping("/v3/members")
+	public Page<MemberTeamDto> searchMemberV3(MemberSearchCondition condition, Pageable pageable) {
+		return memberRepository.searchPageComplex(condition, pageable);
 	}
 }
