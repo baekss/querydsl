@@ -1,6 +1,7 @@
 package study.querydsl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static querydsl.study.querydsl.entity.QMember.member;
 
 import java.util.List;
 
@@ -83,5 +84,19 @@ public class MemberRepositoryTest {
 		Page<MemberTeamDto> result = memberRepository.searchPageSimple(condition, pageable);
 		assertThat(result.getSize()).isEqualTo(3);
 		assertThat(result.getContent()).extracting("username").containsExactly("여몽", "육손", "장합");
+	}
+	
+	@Test
+	public void querydslPredicateExecutorTest() {
+		/*
+		 * 묵시적 조인은 가능하지만, left join 불가능
+		 */
+		Iterable<Member> result = memberRepository.findAll(
+				member.age.between(20, 40)
+				.and(member.username.eq("학소"))
+		);
+		for (Member m : result) {
+			System.out.println(m.toString());
+		}
 	}
 }
